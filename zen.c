@@ -4,6 +4,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <ctype.h>
+#define _CRT_SECURE_NO_WARNINGS
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 //strechy buffer
@@ -37,19 +39,151 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     return new_hdr->buf;
 }
 
+void buf_test(){
+    //...
+}
 
 
-int main(int argc,char **argv) {
-    int *buf=NULL;
-    buf_push(buf, 10);
-    buf_push(buf, 20);
-    buf_push(buf, 30);
-    buf_push(buf, 40);
-    buf_push(buf, 50);
-    for(int i=0;i<buf_len(buf);i++) {
-        printf("%d\n", buf[i]);
+// lexing
+typedef enum TokenKind{
+    TOKEN_INT=128,
+    TOKEN_NAME,
+} TokenKind;
+
+typedef struct Token{
+    TokenKind kind; 
+    union{
+        uint64_t val;
+        struct {
+            const char *start;
+            const char *end;
+        };
+    };
+} Token;
+
+Token token;
+const char *stream;
+
+void next_token(){
+    switch (*stream)
+    {
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+        uint64_t val=0;
+        while(isdigit(*stream)){
+            val*=10;
+            val+=((*stream)-'0');
+            *stream++;
+        }
+        token.kind=TOKEN_INT;
+        token.val=val;
+        break;
+
+    case 'a':
+    case 'b':
+    case 'c':
+    case 'd':
+    case 'e':
+    case 'f':
+    case 'g':
+    case 'h':
+    case 'i':
+    case 'j':
+    case 'k':
+    case 'l':
+    case 'm':
+    case 'n':
+    case 'o':
+    case 'p':
+    case 'q':
+    case 'r':
+    case 's':
+    case 't':
+    case 'u':
+    case 'v':
+    case 'w':
+    case 'x':
+    case 'y':
+    case 'z':
+    case 'A':
+    case 'B':
+    case 'C':
+    case 'D':
+    case 'E':
+    case 'F':
+    case 'G':
+    case 'H':
+    case 'I':
+    case 'J':
+    case 'K':
+    case 'L':
+    case 'M':
+    case 'N':
+    case 'O':
+    case 'P':
+    case 'Q':
+    case 'R':
+    case 'S':
+    case 'T':
+    case 'U':
+    case 'V':
+    case 'W':
+    case 'X':
+    case 'Y':
+    case 'Z':
+    case '_':
+        const char *start=stream++;
+        while(isalnum(*stream) || *stream=='_'){
+            *stream++;
+        }
+        token.kind=TOKEN_NAME;
+        token.start=start;
+        token.end=stream;
+        break;
+    default:
+        token.kind=*stream++;
+        break;
+    }
+}
+
+char output[1024*1024];
+
+void print_token(Token token){
+    switch (token.kind)
+    {
+    case TOKEN_INT:
+        sprintf(output,"TOKEN_INT:%lu\n",token.val);
+        break;
+    case TOKEN_NAME:
+        int length=(int)(token.end-token.start);
+        sprintf(output,"TOKEN_NAME:%.*s\n",length,token.start);
+        break;
+    default:
+        sprintf(output,"TOKEN:%c\n",token.kind);
+        break;
+    }
+}
+
+void lex_test(){
+    char *source="os+()12ada34+99dm4bcmkc";
+    stream=source;
+    next_token();
+    while(token.kind){
+        print_token(token);  
+        next_token();
     }
 
-    buf_free(buf);
+}
+
+int main(int argc,char **argv) {
+    lex_test();
     return 0;
 }
