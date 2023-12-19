@@ -1,3 +1,9 @@
+// Important C data structures
+// 1. Strechy buffer
+// 2. Pointer/uintptr hash table
+// 3. String intern
+
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -5,6 +11,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <ctype.h>
+#include <string.h>
 #define _CRT_SECURE_NO_WARNINGS
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -41,8 +48,54 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
 
 void buf_test(){
     //...
+    int *buf=NULL;
+    assert(buf_len(buf)==0);
+    buf_push(buf,1);
+    buf_push(buf,2);
+    buf_push(buf,3);
+    buf_push(buf,4);
+    assert(buf_len(buf)==4);
+    for(int i=0;i<buf_len(buf);i++){
+        printf("%d\n",buf[i]);
+    }
+    buf_free(buf);
+    assert(buf==NULL);
 }
 
+// hash table
+typedef struct internStr{
+    size_t len;
+    const char *str;
+} internStr;
+
+static internStr *interns;
+
+const char *str_intern_r(const char *start,const char *end){
+    size_t len=end-start;
+    for(size_t i=0;i<buf_len(interns);i++){
+        if(interns[i].len==len && strncmp(interns[i].str, start, len)==0){
+            return interns[i].str;
+        }
+    }
+    char *str=malloc(len+1);
+    memcpy(str,start,len);
+    str[len]=0;
+    buf_push(interns, ((internStr){len, str}));
+
+}
+const char *str_intern(const char *str){
+    return str_intern_r(str, str+strlen(str));
+}
+
+void str_intern_test(){
+    char x[]="hello";
+    char y[]="hello";
+    const char *s1=str_intern(x);
+    const char *s2=str_intern(y);
+    assert(s1==s2);
+    const char *s3=str_intern("hello");
+    assert(s1!=s3);
+}
 
 // lexing
 typedef enum TokenKind{
@@ -52,12 +105,10 @@ typedef enum TokenKind{
 
 typedef struct Token{
     TokenKind kind; 
+    const char *start;
+    const char *end;
     union{
         uint64_t val;
-        struct {
-            const char *start;
-            const char *end;
-        };
     };
 } Token;
 
@@ -65,6 +116,7 @@ Token token;
 const char *stream;
 
 void next_token(){
+    token.start=stream;
     switch (*stream)
     {
     case '0':
@@ -152,6 +204,7 @@ void next_token(){
         token.kind=*stream++;
         break;
     }
+    token.end=stream;
 }
 
 char output[1024*1024];
@@ -185,5 +238,6 @@ void lex_test(){
 
 int main(int argc,char **argv) {
     lex_test();
+    str_intern_test();
     return 0;
 }
