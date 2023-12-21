@@ -81,7 +81,8 @@ const char *str_intern_r(const char *start,const char *end){
     memcpy(str,start,len);
     str[len]=0;
     buf_push(interns, ((internStr){len, str}));
-
+    const char *ret=str;
+    return ret;
 }
 const char *str_intern(const char *str){
     return str_intern_r(str, str+strlen(str));
@@ -90,11 +91,13 @@ const char *str_intern(const char *str){
 void str_intern_test(){
     char x[]="hello";
     char y[]="hello";
+    assert(x!=y);
     const char *s1=str_intern(x);
     const char *s2=str_intern(y);
+
     assert(s1==s2);
     const char *s3=str_intern("hello");
-    assert(s1!=s3);
+    assert(s3==s1);
 }
 
 // lexing
@@ -109,11 +112,36 @@ typedef struct Token{
     const char *end;
     union{
         uint64_t val;
+        const char *name;
     };
 } Token;
 
 Token token;
 const char *stream;
+
+
+const char *keyword_if;
+const char *keyword_for;
+const char *keyword_while;
+
+void init_keywords(){
+    keyword_if=str_intern("if");
+    keyword_for=str_intern("for");
+    keyword_while=str_intern("while");
+}
+void parse_statement(){
+    if(token.kind==TOKEN_NAME){
+        if(token.name==keyword_if){
+            //...
+        }else if(token.name==keyword_for){
+            //...
+        }else if(token.name==keyword_while){
+            //...
+        }else{
+            //...
+        }
+    }
+}
 
 void next_token(){
     token.start=stream;
@@ -197,8 +225,7 @@ void next_token(){
             *stream++;
         }
         token.kind=TOKEN_NAME;
-        token.start=start;
-        token.end=stream;
+        token.name=str_intern_r(start,stream);
         break;
     default:
         token.kind=*stream++;
@@ -226,7 +253,7 @@ void print_token(Token token){
 }
 
 void lex_test(){
-    char *source="os+()12ada34+99dm4bcmkc";
+    char *source="os+mcbc()12amcbcda34+99mcbc";
     stream=source;
     next_token();
     while(token.kind){
