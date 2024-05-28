@@ -3,7 +3,6 @@
 // 2. Pointer/uintptr hash table
 // 3. String intern
 
-
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -12,9 +11,21 @@
 #include <stddef.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdbool.h>
+#include <stdarg.h>
 #define _CRT_SECURE_NO_WARNINGS
-
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+// error
+static char err_buf[1024*1024];
+// fatal error
+void fatal(const char *fmt, ...){
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+}
+
 //strechy buffer
 typedef struct bufHdr {
     size_t len;
@@ -26,7 +37,7 @@ typedef struct bufHdr {
 #define buf__fits(b, n) (buf_len(b) + (n) <= buf_cap(b)) // check if buffer fits
 #define buf__fit(b, n) (buf__fits(b, n) ? 0 : ((b) = buf__grow((b),buf_len(b)+n,sizeof((*b))))) // grow buffer if needed
 
-#define buf_len(b) ((b)? buf__hdr(b)->len:0) // return buffer length
+#define buf_len(b) ((b)? buf__hdr(b)->len:0) // return buffer length 
 #define buf_cap(b) ((b)? buf__hdr(b)->cap:0) // return buffer capacity
 #define buf_push(b, x) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (x)) // push element to buffer
 
@@ -105,6 +116,26 @@ typedef enum TokenKind{
     TOKEN_INT=128,
     TOKEN_NAME,
 } TokenKind;
+
+// Warning: this returns a pointer to a static buffer, so it will be overwritten by the next call to this function.
+const char *token_kind_name(TokenKind kind){
+    static char buf[256];
+    switch (kind){
+        case TOKEN_INT:
+            sprintf(buf,"TOKEN_INT");
+            break;
+        case TOKEN_NAME:
+            sprintf(buf,"TOKEN_NAME");
+            break;
+        default:
+            if (kind<128 && isprint(kind)){
+                sprintf(buf,"'%c'",kind);
+            }
+            else{
+                sprintf(buf,"<ASCII %d>",kind);
+            }
+    }
+}
 
 typedef struct Token{
     TokenKind kind; 
@@ -251,6 +282,42 @@ void print_token(Token token){
         break;
     }
 }
+
+inline bool is_token(TokenKind kind){
+    return token.kind==kind;
+}
+
+inline bool is_token_name(const char *name){
+    return token.kind==TOKEN_NAME && token.name==name;
+}
+
+inline bool match_token(TokenKind kind){
+    if(is_token(kind)){
+        next_token();
+        return true;
+    }
+    return false;
+}
+
+inline bool expect_token(TokenKind kind){
+    if(is_token(kind)){
+        next_token();
+        return true;
+    }
+    else{
+        fatal("expected token %c, got %c\n",kind,token.kind);
+        return false;
+    }
+}
+
+/*
+expr0 = expr1 ([+-] expr1)* 
+*/
+void parse_expr(){
+    //...
+
+}
+ 
 
 void lex_test(){
     char *source="os+mcbc()12amcbcda34+99mcbc";
