@@ -19,11 +19,14 @@
 // error
 static char err_buf[1024*1024];
 // fatal error
-void fatal(const char *fmt, ...){
+void fatal(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
+    printf("FATAL: ");
+    vprintf(fmt, args);
+    printf("\n");
     va_end(args);
+    exit(1);
 }
 
 //strechy buffer
@@ -56,21 +59,20 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     new_hdr->cap = new_cap;
     return new_hdr->buf;
 }
-
-void buf_test(){
-    //...
-    int *buf=NULL;
-    assert(buf_len(buf)==0);
-    buf_push(buf,1);
-    buf_push(buf,2);
-    buf_push(buf,3);
-    buf_push(buf,4);
-    assert(buf_len(buf)==4);
-    for(int i=0;i<buf_len(buf);i++){
-        printf("%d\n",buf[i]);
+void buf_test() {
+    int *buf = NULL;
+    assert(buf_len(buf) == 0);
+    enum { N = 1024 };
+    for (int i = 0; i < N; i++) {
+        buf_push(buf, i);
+    }
+    assert(buf_len(buf) == N);
+    for (int i = 0; i < buf_len(buf); i++) {
+        assert(buf[i] == i);
     }
     buf_free(buf);
-    assert(buf==NULL);
+    assert(buf == NULL);
+    assert(buf_len(buf) == 0);
 }
 
 // hash table
@@ -110,12 +112,15 @@ void str_intern_test(){
     const char *s3=str_intern("hello");
     assert(s3==s1);
 }
-
 // lexing
-typedef enum TokenKind{
-    TOKEN_INT=128,
+typedef enum TokenKind {
+    // Reserve first 128 values for one-char tokens
+    TOKEN_LAST_CHAR = 127,
+    TOKEN_INT,
     TOKEN_NAME,
 } TokenKind;
+
+
 
 // Warning: this returns a pointer to a static buffer, so it will be overwritten by the next call to this function.
 const char *token_kind_name(TokenKind kind){
@@ -134,7 +139,9 @@ const char *token_kind_name(TokenKind kind){
             else{
                 sprintf(buf,"<ASCII %d>",kind);
             }
+            break;
     }
+    return buf;
 }
 
 typedef struct Token{
@@ -188,7 +195,7 @@ void next_token(){
     case '7':
     case '8':
     case '9':
-        uint64_t val=0;
+        int val=0;
         while(isdigit(*stream)){
             val*=10;
             val+=((*stream)-'0');
@@ -321,7 +328,6 @@ void lex_test(){
     while(token.kind){
         next_token();
     }
-
 }
 
 // The functions for the parser in particular have been picked up from github 
