@@ -28,6 +28,14 @@ void fatal(const char *fmt, ...) {
     va_end(args);
     exit(1);
 }
+void syntax_error(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    printf("SYNTAX ERROR: ");
+    vprintf(fmt, args);
+    printf("\n");
+    va_end(args);
+}
 
 //strechy buffer
 typedef struct bufHdr {
@@ -42,8 +50,9 @@ typedef struct bufHdr {
 
 #define buf_len(b) ((b)? buf__hdr(b)->len:0) // return buffer length 
 #define buf_cap(b) ((b)? buf__hdr(b)->cap:0) // return buffer capacity
-#define buf_push(b, x) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (x)) // push element to buffer
-
+// #define buf_push(b, x) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (x)) // push element to buffer
+// idk how it is fixed now, thanks to chatgpt
+#define buf_push(b, ...) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
 #define buf_free(b) ((b) ? free(buf__hdr(b)), (b) = NULL : 0) // free buffer
 
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
@@ -93,7 +102,7 @@ const char *str_intern_r(const char *start,const char *end){
     char *str=malloc(len+1);
     memcpy(str,start,len);
     str[len]=0;
-    buf_push(interns, ((internStr){len, str}));
+    buf_push(interns, (internStr){len, str});
     const char *ret=str;
     return ret;
 }
@@ -149,7 +158,7 @@ typedef struct Token{
     const char *start;
     const char *end;
     union{
-        uint64_t val;
+        uint64_t int_val;
         const char *name;
     };
 } Token;
@@ -181,83 +190,70 @@ void parse_statement(){
     }
 }
 
+// designated initializers
+uint8_t char_to_digit[256] = {
+    ['0'] = 0,
+    ['1'] = 1,
+    ['2'] = 2,
+    ['3'] = 3,
+    ['4'] = 4,
+    ['5'] = 5,
+    ['6'] = 6,
+    ['7'] = 7,
+    ['8'] = 8,
+    ['9'] = 9,
+    ['a'] = 10, ['A'] = 10,
+    ['b'] = 11, ['B'] = 11,
+    ['c'] = 12, ['C'] = 12,
+    ['d'] = 13, ['D'] = 13,
+    ['e'] = 14, ['E'] = 14,
+    ['f'] = 15, ['F'] = 15,
+};
+
+uint64_t scan_int(){
+    uint64_t base=10;
+    if(*stream==0){
+        stream++;
+        if(tolower(*stream)=='x'){
+            stream++;
+            base=16;
+        }   
+        else{
+            syntax_error("invalid integer literal",*stream);
+            stream++;       
+        }
+    }
+    uint64_t val=0;
+    for(;;){
+        int digit=*stream++ -'0';
+        if(digit==0 && *stream!='0'){
+            break;
+        }
+        if(digit>=base){
+            syntax_error("Digit '%c' out of range for base %lu",*stream,base);
+            stream;
+        }
+        if(val>=(INT64_MAX-digit)/base){
+            syntax_error("intefer literal overflow");
+            while(isdigit(*stream)) stream++;
+            val=0;
+        }
+        assert(val<= (INT64_MAX-digit)/10);
+        val=val*base+digit;
+    }
+    return val;
+}
+
 void next_token(){
     token.start=stream;
     switch (*stream)
     {
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-        int val=0;
-        while(isdigit(*stream)){
-            val*=10;
-            val+=((*stream)-'0');
-            *stream++;
-        }
+    case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
         token.kind=TOKEN_INT;
-        token.val=val;
+        token.int_val=scan_int();
         break;
 
-    case 'a':
-    case 'b':
-    case 'c':
-    case 'd':
-    case 'e':
-    case 'f':
-    case 'g':
-    case 'h':
-    case 'i':
-    case 'j':
-    case 'k':
-    case 'l':
-    case 'm':
-    case 'n':
-    case 'o':
-    case 'p':
-    case 'q':
-    case 'r':
-    case 's':
-    case 't':
-    case 'u':
-    case 'v':
-    case 'w':
-    case 'x':
-    case 'y':
-    case 'z':
-    case 'A':
-    case 'B':
-    case 'C':
-    case 'D':
-    case 'E':
-    case 'F':
-    case 'G':
-    case 'H':
-    case 'I':
-    case 'J':
-    case 'K':
-    case 'L':
-    case 'M':
-    case 'N':
-    case 'O':
-    case 'P':
-    case 'Q':
-    case 'R':
-    case 'S':
-    case 'T':
-    case 'U':
-    case 'V':
-    case 'W':
-    case 'X':
-    case 'Y':
-    case 'Z':
-    case '_':
+    case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z': case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z': case '_':
         const char *start=stream++;
         while(isalnum(*stream) || *stream=='_'){
             *stream++;
@@ -282,7 +278,7 @@ void print_token(Token token){
     switch (token.kind)
     {
     case TOKEN_INT:
-        sprintf(output,"TOKEN_INT:%lu\n",token.val);
+        sprintf(output,"TOKEN_INT:%lu\n",token.int_val);
         break;
     case TOKEN_NAME:
         int length=(int)(token.end-token.start);
@@ -321,32 +317,53 @@ static inline bool expect_token(TokenKind kind){
     }
 }
 
+#define assert_token(x) assert(match_token(x))
+#define assert_token_name(x) assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
+#define assert_token_int(x) assert(token.int_val == (x) && match_token(TOKEN_INT))
+#define assert_token_eof() assert(is_token(0))
+
 void lex_test(){
-    char *source = "XY+(XY)_HELLO1,234+FOO!994";
-    stream=source;
-    next_token();
-    while(token.kind){
-        next_token();
-    }
+    const char *str = "XY+(XY)_HELLO1,234+994";
+    init_stream(str);
+    assert_token_name("XY");
+    assert_token('+');
+    assert_token('(');
+    assert_token_name("XY");
+    assert_token(')');
+    assert_token_name("_HELLO1");
+    assert_token(',');
+    assert_token_int(234);
+    assert_token('+');
+    assert_token_int(994);
+    assert_token_eof();
+    // make sure Uint64_max doesn't trigger overflow
+    init_stream("18446744073709551615");
+    assert_token_int(18446744073709551615ull);
+
+
 }
+
+#undef assert_token_eof
+#undef assert_token_int
+#undef assert_token_name
+#undef assert_token
+
 
 // The functions for the parser in particular have been picked up from github 
 
-/*
-    Expression grammar:
-
+#if 0
     expr3 = INT | '(' expr ')' 
     expr2 = '-' expr2 | expr3
-    expr1 = expr2 ([/*] expr2)*
+    expr1 = expr2 ([*/] expr2)*
     expr0 = expr1 ([+-] expr1)*
     expr = expr0
-*/
+#endif
 
 int parse_expr();
 
 int parse_expr3() {
     if (is_token(TOKEN_INT)) {
-        int val = token.val;
+        int val = token.int_val;
         next_token();
         return val;
     } else if (match_token('(')) {
