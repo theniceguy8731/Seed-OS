@@ -51,10 +51,12 @@ typedef struct bufHdr {
 
 #define buf_len(b) ((b)? buf__hdr(b)->len:0) // return buffer length 
 #define buf_cap(b) ((b)? buf__hdr(b)->cap:0) // return buffer capacity
+#define buf_end(b) ((b) + buf_len(b))
 // #define buf_push(b, x) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (x)) // push element to buffer
 // idk how it is fixed now, thanks to chatgpt
-#define buf_push(b, ...) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
+#define buf_push(b, ...) (buf__fit((b), 1 + buf_len(b)), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
 #define buf_free(b) ((b) ? free(buf__hdr(b)), (b) = NULL : 0) // free buffer
+
 
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     size_t new_cap = MAX(1 + 2 * buf_cap(buf), new_len);
@@ -129,6 +131,7 @@ typedef enum TokenKind {
     TOKEN_INT,
     TOKEN_FLOAT,
     TOKEN_NAME,
+    TOKEN_STR,
 } TokenKind;
 
 typedef enum TokenMod  {
@@ -174,6 +177,7 @@ typedef struct Token{
         uint64_t int_val;
         double float_val;
         const char *name;
+        const char *str_val;
     };
 } Token;
 
@@ -324,16 +328,48 @@ void scan_char(){
         stream++;
     }
     else{
-        val-*stream;
+        val=*stream;
+        stream++;
+    }
+    if(*stream!='\''){
+        syntax_error("expected closing ' for char literal");
+    }
+    else{
+        stream++;
     }
     token.kind=TOKEN_INT;
     token.int_val=val;
-    assert(0);
+    token.mod=TOKENMOD_CHAR;
 }
-void scan_str(){
-    assert(0);
+void scan_str() {
+    assert(*stream == '"');
+    stream++;
+    char *str = NULL;
+    while (*stream && *stream != '"') {
+        char val = *stream;
+        if (val == '\n') {
+            syntax_error("String literal cannot contain newline");
+            break;
+        } else if (val == '\\') {
+            stream++;
+            val = escape_to_char[*stream];
+            if (val == 0 && *stream != '0') {
+                syntax_error("Invalid string literal escape '\\%c'", *stream);
+            }
+        }
+        buf_push(str, val);
+        stream++;
+    }
+    if (*stream) {
+        assert(*stream == '"');
+        stream++;
+    } else {
+        syntax_error("Unexpected end of file within string literal");
+    }
+    buf_push(str, 0);
+    token.kind = TOKEN_STR;
+    token.str_val = str;
 }
-
 void next_token(){
     token.start=stream;
     switch (*stream)
@@ -432,23 +468,38 @@ static inline bool expect_token(TokenKind kind){
 #define assert_token_name(x) assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
 #define assert_token_int(x) assert(token.int_val == (x) && match_token(TOKEN_INT))
 #define assert_token_float(x) assert(token.float_val == (x) && match_token(TOKEN_FLOAT))
+#define assert_token_str(x) assert(strcmp(token.str_val, (x)) == 0 && match_token(TOKEN_STR))
 #define assert_token_eof() assert(is_token(0))
 
 void lex_test(){
-    // make sure Uint64_max doesn't trigger overflow
+    // integer literal tests
     init_stream("18446744073709551615 0xffffffffffffffff 01777777777777777777777 0b111");
     assert_token_int(18446744073709551615ull);
     assert_token_int(0xffffffffffffffffull);
     assert_token_int(01777777777777777777777);
     assert_token_int(0b111);
+    assert_token_eof();
 
-    // make sure floats work
+    // float literal tests
     init_stream("3.14 2.71828 1.0e10 6.022e-23");
     assert_token_float(3.14);
     assert_token_float(2.71828);
     assert_token_float(1.0e10);
     assert_token_float(6.022e-23);
+    assert_token_eof();
     
+    // char literal tests
+    init_stream("'a' '\\n'");
+    assert_token_int('a');
+    assert_token_int('\n');
+    assert_token_eof();
+
+    //string literal test
+    init_stream("\"hello\" \"world\"");
+    assert_token_str("hello");
+    assert_token_str("world");
+
+    // generic tests
     const char *str = "XY+(XY)_HELLO1,234+994";
     init_stream(str);
     assert_token_name("XY");
