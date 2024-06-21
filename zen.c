@@ -126,6 +126,7 @@ typedef enum TokenKind {
     // Reserve first 128 values for one-char tokens
     TOKEN_LAST_CHAR = 127,
     TOKEN_INT,
+    TOKEN_FLOAT,
     TOKEN_NAME,
 } TokenKind;
 
@@ -137,6 +138,9 @@ const char *token_kind_name(TokenKind kind){
     switch (kind){
         case TOKEN_INT:
             sprintf(buf,"TOKEN_INT");
+            break;
+        case TOKEN_FLOAT:
+            sprintf(buf,"TOKEN_FLOAT");
             break;
         case TOKEN_NAME:
             sprintf(buf,"TOKEN_NAME");
@@ -159,6 +163,7 @@ typedef struct Token{
     const char *end;
     union{
         uint64_t int_val;
+        double float_val;
         const char *name;
     };
 } Token;
@@ -210,47 +215,96 @@ uint8_t char_to_digit[256] = {
     ['f'] = 15, ['F'] = 15,
 };
 
-uint64_t scan_int(){
-    uint64_t base=10;
-    if(*stream==0){
-        stream++;
-        if(tolower(*stream)=='x'){
-            stream++;
-            base=16;
-        }   
-        else{
-            syntax_error("invalid integer literal",*stream);
-            stream++;       
-        }
-    }
+uint64_t scan_int(uint64_t base){
+    
     uint64_t val=0;
     for(;;){
-        int digit=*stream++ -'0';
+        int digit=char_to_digit[*stream];
         if(digit==0 && *stream!='0'){
             break;
         }
         if(digit>=base){
             syntax_error("Digit '%c' out of range for base %lu",*stream,base);
-            stream;
+            digit=0;
         }
-        if(val>=(INT64_MAX-digit)/base){
-            syntax_error("intefer literal overflow");
+        if(val>(UINT64_MAX-digit)/base){
+            syntax_error("integer literal overflow");
             while(isdigit(*stream)) stream++;
             val=0;
         }
-        assert(val<= (INT64_MAX-digit)/10);
+        assert(val<= (UINT64_MAX-digit)/base);
         val=val*base+digit;
+        *stream++;
     }
     return val;
+}
+
+double scan_float(){
+    const char *start=stream;
+    while(isdigit(*stream)) stream++;
+    if(*stream=='.') stream++;
+    while(isdigit(*stream)) stream++;
+    if(tolower(*stream)=='e'){
+        stream++;
+        if(*stream=='+' || *stream=='-') stream++;
+        if(!isdigit(*stream)){
+            syntax_error("expected digit after float exponent");
+        }
+        while(isdigit(*stream)) stream++;
+    }
+    return strtod(start,NULL);
 }
 
 void next_token(){
     token.start=stream;
     switch (*stream)
     {
+    case ' ': case '\n': case '\r': case '\t': case '\v': case '\f':
+        while(isspace(*stream)) stream++;
+        next_token();
+        break;
+    case '.':
+        token.kind=TOKEN_FLOAT;
+        token.float_val=scan_float();
+        break;
     case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+        const char *bookmark=stream;
+        while(isdigit(*stream)) stream++;
+        if(*stream=='.'){
+            stream=bookmark;
+            token.kind=TOKEN_FLOAT;
+            token.float_val=scan_float();
+        }
+        else{
+            stream=bookmark;
+            token.int_val=scan_int(10);
+        }
+        uint64_t base=10;
+        if(*stream=='0'){
+            stream++;
+            if(tolower(*stream)=='x'){
+                stream++;
+                base=16;
+            }
+            else if(tolower(*stream)=='b'){
+                stream++;
+                base=2;
+            }
+            else if (isdigit(*stream)){
+                base=8;
+            }
+            else{
+                syntax_error("invalid integer literal",*stream);
+                stream++;       
+            }
+        }
         token.kind=TOKEN_INT;
-        token.int_val=scan_int();
+        token.int_val=scan_int(base);
+        if(base==10 && *stream=='.' && isdigit(stream[1])){
+            stream=token.start;
+            token.kind=TOKEN_FLOAT;
+            token.float_val=scan_float();
+        }
         break;
 
     case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z': case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z': case '_':
@@ -323,6 +377,12 @@ static inline bool expect_token(TokenKind kind){
 #define assert_token_eof() assert(is_token(0))
 
 void lex_test(){
+    // make sure Uint64_max doesn't trigger overflow
+    init_stream("18446744073709551615 0xffffffffffffffff 01777777777777777777777 0b111");
+    assert_token_int(18446744073709551615ull);
+    assert_token_int(0xffffffffffffffffull);
+    assert_token_int(01777777777777777777777);
+    assert_token_int(0b111);
     const char *str = "XY+(XY)_HELLO1,234+994";
     init_stream(str);
     assert_token_name("XY");
@@ -336,10 +396,6 @@ void lex_test(){
     assert_token('+');
     assert_token_int(994);
     assert_token_eof();
-    // make sure Uint64_max doesn't trigger overflow
-    init_stream("18446744073709551615");
-    assert_token_int(18446744073709551615ull);
-
 
 }
 
