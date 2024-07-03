@@ -249,28 +249,6 @@ void scan_str() {
     token.kind = TOKEN_STR;
     token.str_val = str;
 }
-
-#define CASE1(c, c1, k1) \
-    case c: \
-        token.kind = *stream++; \
-        if (*stream == c1) { \
-            token.kind = k1; \
-            stream++; \
-        } \
-        break;
-
-#define CASE2(c, c1, k1, c2, k2) \
-    case c: \
-        token.kind = *stream++; \
-        if (*stream == c1) { \
-            token.kind = k1; \
-            stream++; \
-        } else if (*stream == c2) { \
-            token.kind = k2; \
-            stream++; \
-        } \
-        break;
-
 void next_token() {
 repeat:
     token.start = stream;
@@ -345,15 +323,81 @@ repeat:
             stream++;
         }
         break;
-    CASE1('^', '=', TOKEN_XOR_ASSIGN)
-    CASE1(':', '=', TOKEN_COLON_ASSIGN)
-    CASE1('*', '=', TOKEN_MUL_ASSIGN)
-    CASE1('/', '=', TOKEN_DIV_ASSIGN)
-    CASE1('%', '=', TOKEN_MOD_ASSIGN)
-    CASE2('+', '=', TOKEN_ADD_ASSIGN, '+', TOKEN_INC)
-    CASE2('-', '=', TOKEN_SUB_ASSIGN, '-', TOKEN_DEC)
-    CASE2('&', '=', TOKEN_AND_ASSIGN, '&', TOKEN_AND)
-    CASE2('|', '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR)
+    case '^':
+        token.kind = *stream++;
+        if (*stream == '=') {
+            token.kind = TOKEN_XOR_ASSIGN;
+            stream++;
+        }
+        break;
+    case ':':
+        token.kind = *stream++;
+        if (*stream == '=') {
+            token.kind = TOKEN_COLON_ASSIGN;
+            stream++;
+        }
+        break;
+    case '*':
+        token.kind = *stream++;
+        if (*stream == '=') {
+            token.kind = TOKEN_MUL_ASSIGN;
+            stream++;
+        }
+        break;
+    case '/':
+        token.kind = *stream++;
+        if (*stream == '=') {
+            token.kind = TOKEN_DIV_ASSIGN;
+            stream++;
+        }
+        break;
+    case '%':
+        token.kind = *stream++;
+        if (*stream == '=') {
+            token.kind = TOKEN_MOD_ASSIGN;
+            stream++;
+        }
+        break;
+    case '+':
+        token.kind = *stream++;
+        if (*stream == '+') {
+            token.kind = TOKEN_INC;
+            stream++;
+        } else if (*stream == '=') {
+            token.kind = TOKEN_ADD_ASSIGN;
+            stream++;
+        }
+        break;
+    case '-':
+        token.kind = *stream++;
+        if (*stream == '-') {
+            token.kind = TOKEN_DEC;
+            stream++;
+        } else if (*stream == '=') {
+            token.kind = TOKEN_SUB_ASSIGN;
+            stream++;
+        }
+        break;
+    case '&':
+        token.kind = *stream++;
+        if (*stream == '&') {
+            token.kind = TOKEN_AND;
+            stream++;
+        } else if (*stream == '=') {
+            token.kind = TOKEN_AND_ASSIGN;
+            stream++;
+        }
+        break;
+    case '|':
+        token.kind = *stream++;
+        if (*stream == '|') {
+            token.kind = TOKEN_OR;
+            stream++;
+        } else if (*stream == '=') {
+            token.kind = TOKEN_OR_ASSIGN;
+            stream++;
+        }
+        break;
     default:
         token.kind = *stream++;
         break;
