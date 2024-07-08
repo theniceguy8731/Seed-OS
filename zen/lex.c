@@ -106,6 +106,16 @@ uint8_t char_to_digit[256] = {
     ['f'] = 15, ['F'] = 15,
 };
 
+char escape_to_char[256] = {
+    ['n'] = '\n',
+    ['r'] = '\r',
+    ['t'] = '\t',
+    ['v'] = '\v',
+    ['b'] = '\b',
+    ['a'] = '\a',
+    ['0'] = 0,
+};
+
 void scan_int() {
     uint64_t base = 10;
     if (*stream == '0') {
@@ -180,16 +190,6 @@ void scan_float() {
     token.float_val = val;
 }
 
-char escape_to_char[256] = {
-    ['n'] = '\n',
-    ['r'] = '\r',
-    ['t'] = '\t',
-    ['v'] = '\v',
-    ['b'] = '\b',
-    ['a'] = '\a',
-    ['0'] = 0,
-};
-
 void scan_char() {
     assert(*stream == '\'');
     stream++;
@@ -249,6 +249,7 @@ void scan_str() {
     token.kind = TOKEN_STR;
     token.str_val = str;
 }
+
 void next_token() {
 repeat:
     token.start = stream;
@@ -404,9 +405,6 @@ repeat:
     }
     token.end = stream;
 }
-
-#undef CASE1
-#undef CASE2
 
 void init_stream(const char *str) {
     stream = str;
